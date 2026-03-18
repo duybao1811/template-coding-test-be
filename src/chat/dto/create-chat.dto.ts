@@ -1,11 +1,4 @@
-import {
-  ArrayMaxSize,
-  IsArray,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class CreateChatDto {
   @IsString()
@@ -16,9 +9,4 @@ export class CreateChatDto {
   @IsString()
   @MaxLength(10000)
   message: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  attachmentIds?: string[];
 }

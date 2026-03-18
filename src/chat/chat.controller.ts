@@ -24,38 +24,13 @@ export class ChatController {
     private readonly attachmentService: AttachmentService,
   ) {}
 
-  @Post('/upload')
-  @UseInterceptors(FilesInterceptor('images', 5, multerConfig))
-  async chat(
+  @Post('stream')
+  @UseInterceptors(FilesInterceptor('images', 20, multerConfig))
+  async streamChat(
     @Body() dto: CreateChatDto,
     @UploadedFiles() files: Express.Multer.File[],
+    @Res() res: Response,
   ) {
-    const { sessionId, message } = dto;
-
-    const conversation =
-      await this.chatService.findOrCreateConversation(sessionId);
-
-    const userMessage = await this.chatService.saveUserMessage(
-      conversation.id,
-      message,
-    );
-
-    const attachments = await this.attachmentService.saveAttachments(
-      userMessage.id,
-      files,
-    );
-
-    return {
-      message: 'Uploaded successfully',
-      data: {
-        messageId: userMessage.id,
-        attachments,
-      },
-    };
-  }
-
-  @Post('stream')
-  async streamChat(@Body() dto: CreateChatDto, @Res() res: Response) {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -71,6 +46,7 @@ export class ChatController {
     try {
       const result = await this.chatService.streamChat(
         dto,
+        files,
         (chunk: string) => {
           if (isClosed) {
             return;
@@ -82,13 +58,6 @@ export class ChatController {
               content: chunk,
             })}\n\n`,
           );
-        },
-        (meta) => {
-          if (isClosed) {
-            return;
-          }
-
-          res.write(`data: ${JSON.stringify({ type: 'meta', ...meta })}\n\n`);
         },
         () => isClosed,
       );

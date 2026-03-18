@@ -38,7 +38,13 @@ export const multerConfig: MulterOptions = {
     file: Express.Multer.File,
     cb: (error: Error | null, acceptFile: boolean) => void,
   ) => {
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedMimeTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ];
 
     if (!allowedMimeTypes.includes(file.mimetype)) {
       cb(new BadRequestException('Only image files are allowed'), false);
@@ -52,4 +58,4 @@ export const multerConfig: MulterOptions = {
     fileSize: 5 * 1024 * 1024,
     files: 20,
   },
-}
+};

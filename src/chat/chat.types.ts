@@ -1,5 +1,7 @@
 import { MessageEntity } from './entities/message.entity';
 
+export type MessageRole = 'user' | 'assistant' | 'system';
+
 export type StreamMeta = {
   conversationId: string;
   messageId: string;
@@ -23,3 +25,20 @@ export type PaginatedMessagesResult = {
   hasMore: boolean;
   nextCursor: string | null;
 };
+
+export type OpenAIInputTextItem = {
+  type: 'input_text';
+  text: string;
+};
+
+export type OpenAIInputItem = OpenAIInputTextItem | OpenAIInputImageItem;
+
+export type OpenAIInputImageItem = {
+  type: 'input_image';
+  file_id: string;
+};
+
+export type OpenAIMessageInput = {
+  role: 'user' | 'assistant' | 'system';
+  content: string | OpenAIInputItem[];
+}

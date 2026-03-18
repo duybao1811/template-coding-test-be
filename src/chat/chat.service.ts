@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import OpenAI from 'openai';
 
 import { ConversationEntity } from './entities/conversation.entity';
@@ -16,12 +16,16 @@ import {
   DEFAULT_CHAT_HISTORY_LIMIT,
   MAX_CHAT_HISTORY_LIMIT,
 } from '../constants';
-import type {
+import {
   GetMessagesOptions,
+  MessageRole,
+  OpenAIInputItem,
+  OpenAIMessageInput,
   PaginatedMessagesResult,
   StreamChatResult,
-  StreamMeta,
 } from './chat.types';
+import { MessageAttachmentEntity } from '../attachment/entities/message-attachment.entity';
+import { AttachmentService } from '../attachment/attachment.service';
 
 @Injectable()
 export class ChatService {
@@ -31,9 +35,15 @@ export class ChatService {
   constructor(
     @InjectRepository(ConversationEntity)
     private readonly conversationRepo: Repository<ConversationEntity>,
+
     @InjectRepository(MessageEntity)
     private readonly messageRepo: Repository<MessageEntity>,
+
+    @InjectRepository(MessageAttachmentEntity)
+    private readonly attachmentRepo: Repository<MessageAttachmentEntity>,
+
     private readonly configService: ConfigService,
+    private readonly attachmentService: AttachmentService,
   ) {
     const apiKey = this.configService.get<string>('openai.apiKey');
 
@@ -220,36 +230,67 @@ export class ChatService {
     return await this.getConversationMessages(conversation.id, options);
   }
 
-  buildOpenAIInput(
-    history: MessageEntity[],
-  ): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
-    return history.map((msg) => ({
-      role: msg.role as 'user' | 'assistant' | 'system',
-      content: msg.content,
-    }));
+  private buildCurrentUserInput(
+    message: string,
+    attachments: MessageAttachmentEntity[],
+  ): OpenAIMessageInput {
+    const content: OpenAIInputItem[] = [];
+    if (message?.trim()) {
+      content.push({
+        type: 'input_text',
+        text: message.trim(),
+      });
+    }
+
+    for (const attachment of attachments) {
+      if (!attachment.openaiFileId) continue;
+
+      content.push({
+        type: 'input_image',
+        file_id: attachment.openaiFileId,
+      });
+    }
+
+    return {
+      role: 'user',
+      content,
+    };
   }
 
   async streamChat(
     dto: CreateChatDto,
+    files: Express.Multer.File[],
     onChunk: (chunk: string) => void,
-    onMeta?: (meta: StreamMeta) => void,
     isAborted?: () => boolean,
   ): Promise<StreamChatResult> {
-    const { sessionId, message, attachmentIds } = dto;
+    const { sessionId, message } = dto;
 
     const conversation = await this.findOrCreateConversation(sessionId);
 
     const userMessage = await this.saveUserMessage(conversation.id, message);
 
-    if (onMeta) {
-      onMeta({
-        conversationId: conversation.id,
-        messageId: userMessage.id,
-      });
+    let attachments: MessageAttachmentEntity[] = [];
+    if (files?.length) {
+      attachments = await this.attachmentService.saveAttachments(
+        userMessage.id,
+        files,
+      );
     }
 
-    const history = await this.getConversationMessages(conversation.id);
-    const input = this.buildOpenAIInput(history as MessageEntity[]);
+    const history = await this.messageRepo.find({
+      where: { conversationId: conversation.id },
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+
+    const previousHistory = history.filter((m) => m.id !== userMessage.id);
+
+    const historyInput = previousHistory.map((msg) => ({
+      role: msg.role as MessageRole,
+      content: msg.content,
+    }));
+    const currentUserInput = this.buildCurrentUserInput(message, attachments);
+
+    const input = [...historyInput, currentUserInput];
 
     const model =
       this.configService.get<string>('openai.model', 'gpt-5.4') ?? 'gpt-5.4';
@@ -262,6 +303,8 @@ export class ChatService {
     try {
       const stream = await this.openai.responses.create({
         model,
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
         input,
         stream: true,
       });
