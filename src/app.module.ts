@@ -6,12 +6,13 @@ import { ChatModule } from './chat/chat.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import databaseConfig from './config/database.config';
 import openaiConfig from './config/openai.config';
+import appConfig from './config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, openaiConfig],
+      load: [databaseConfig, openaiConfig, appConfig],
     }),
 
     TypeOrmModule.forRootAsync({

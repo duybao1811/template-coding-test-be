@@ -1,13 +1,58 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { Response } from 'express';
-
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { GetChatHistoryQueryDto } from './dto/get-chat-history-query.dto';
+import { AttachmentService } from '../attachment/attachment.service';
+import { multerConfig } from '../common/config/multer.config';
 
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly attachmentService: AttachmentService,
+  ) {}
+
+  @Post('/upload')
+  @UseInterceptors(FilesInterceptor('images', 5, multerConfig))
+  async chat(
+    @Body() dto: CreateChatDto,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    const { sessionId, message } = dto;
+
+    const conversation =
+      await this.chatService.findOrCreateConversation(sessionId);
+
+    const userMessage = await this.chatService.saveUserMessage(
+      conversation.id,
+      message,
+    );
+
+    const attachments = await this.attachmentService.saveAttachments(
+      userMessage.id,
+      files,
+    );
+
+    return {
+      message: 'Uploaded successfully',
+      data: {
+        messageId: userMessage.id,
+        attachments,
+      },
+    };
+  }
 
   @Post('stream')
   async streamChat(@Body() dto: CreateChatDto, @Res() res: Response) {

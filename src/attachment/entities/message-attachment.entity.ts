@@ -6,9 +6,9 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  Relation,
 } from 'typeorm';
-import { MessageEntity } from './message.entity';
+import type { Relation } from 'typeorm';
+import { MessageEntity } from '../../chat/entities/message.entity';
 
 export type AttachmentType = 'image';
 
@@ -18,19 +18,18 @@ export class MessageAttachmentEntity {
   id: string;
 
   @Index()
-  @Column({ type: 'char', length: 36, nullable: true })
-  messageId: string | null;
+  @Column({ type: 'char', length: 36 })
+  messageId: string;
 
   @ManyToOne(
     () => MessageEntity,
     (message: MessageEntity) => message.attachments,
     {
       onDelete: 'CASCADE',
-      nullable: true,
     },
   )
   @JoinColumn({ name: 'messageId' })
-  message: Relation<MessageEntity> | null;
+  message: Relation<MessageEntity>;
 
   @Column({ type: 'varchar', length: 20 })
   type: AttachmentType;

@@ -11,7 +11,7 @@ import {
 
 import type { Relation } from 'typeorm';
 import { ConversationEntity } from './conversation.entity';
-import { MessageAttachmentEntity } from './message-attachment.entity';
+import { MessageAttachmentEntity } from '../../attachment/entities/message-attachment.entity';
 
 export type MessageRole = 'user' | 'assistant';
 
@@ -59,7 +59,7 @@ export class MessageEntity {
     () => MessageAttachmentEntity,
     (attachment: MessageAttachmentEntity) => attachment.message,
   )
-  attachments: Relation<MessageAttachmentEntity[]>;
+  attachments: MessageAttachmentEntity[];
 
   @CreateDateColumn()
   createdAt!: Date;

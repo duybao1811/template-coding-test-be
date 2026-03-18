@@ -19,6 +19,6 @@ export class CreateChatDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(5)
+  @ArrayMaxSize(20)
   attachmentIds?: string[];
 }

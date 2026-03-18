@@ -111,19 +111,15 @@ export class ChatService {
 
   async getConversationMessages(
     conversationId: string,
-  ): Promise<MessageEntity[]>;
-  async getConversationMessages(
-    conversationId: string,
-    options: GetMessagesOptions,
-  ): Promise<PaginatedMessagesResult>;
-  async getConversationMessages(
-    conversationId: string,
     options?: GetMessagesOptions,
   ): Promise<MessageEntity[] | PaginatedMessagesResult> {
     if (!options) {
       return await this.messageRepo.find({
         where: { conversationId },
-        order: { createdAt: 'ASC', id: 'ASC' as never },
+        relations: {
+          attachments: true,
+        },
+        order: { createdAt: 'ASC', id: 'ASC' },
       });
     }
 
@@ -132,7 +128,10 @@ export class ChatService {
     if (!options.beforeMessageId) {
       const rows = await this.messageRepo.find({
         where: { conversationId },
-        order: { createdAt: 'DESC', id: 'DESC' as never },
+        relations: {
+          attachments: true,
+        },
+        order: { createdAt: 'DESC', id: 'DESC' },
         take: take + 1,
       });
 
@@ -194,11 +193,6 @@ export class ChatService {
     };
   }
 
-  async getMessagesBySessionId(sessionId: string): Promise<MessageEntity[]>;
-  async getMessagesBySessionId(
-    sessionId: string,
-    options: GetMessagesOptions,
-  ): Promise<PaginatedMessagesResult>;
   async getMessagesBySessionId(
     sessionId: string,
     options?: GetMessagesOptions,
@@ -241,15 +235,7 @@ export class ChatService {
     onMeta?: (meta: StreamMeta) => void,
     isAborted?: () => boolean,
   ): Promise<StreamChatResult> {
-    const { sessionId, message } = dto;
-
-    if (!sessionId?.trim()) {
-      throw new BadRequestException('sessionId is required');
-    }
-
-    if (!message?.trim()) {
-      throw new BadRequestException('message is required');
-    }
+    const { sessionId, message, attachmentIds } = dto;
 
     const conversation = await this.findOrCreateConversation(sessionId);
 
@@ -263,7 +249,7 @@ export class ChatService {
     }
 
     const history = await this.getConversationMessages(conversation.id);
-    const input = this.buildOpenAIInput(history);
+    const input = this.buildOpenAIInput(history as MessageEntity[]);
 
     const model =
       this.configService.get<string>('openai.model', 'gpt-5.4') ?? 'gpt-5.4';
