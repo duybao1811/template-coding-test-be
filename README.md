@@ -109,12 +109,34 @@ Server: http://localhost:3001/api/v1
 
 ------------------------------------------------------------------------
 
-## 🗄️ Database
+## 🧩 Database Schema & Relationships
 
--   Using MySQL
--   Auto create tables if DB_SYNC=true
+### Tables
+
+-   conversations → store chat sessions
+-   messages → store messages in a conversation
+-   message_attachments → store uploaded files
+
+### Relationships
+
+-   1 Conversation : N Messages
+-   1 Message : N Attachments
+
+### Structure
+
+conversations\
+└── messages\
+  └── message_attachments
+
+### Data Flow
+
+1.  Create/find conversation by sessionId\
+2.  Save messages (user + assistant)\
+3.  Save attachments (if any)\
+4.  Query conversation with messages + attachments
 
 ------------------------------------------------------------------------
 
 ## 🔐 Notes
+
 -   Ensure MySQL is running
