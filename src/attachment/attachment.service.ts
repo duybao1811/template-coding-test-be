@@ -63,7 +63,7 @@ export class AttachmentService {
         mimeType: file.mimetype,
         size: file.size,
         localPath: file.path,
-        url: `${this.configService.get<string>('app.baseUrl')}/uploads/chat-images/${file.filename}`,
+        url: `/uploads/chat-images/${file.filename}`,
         openaiFileId,
       });
 

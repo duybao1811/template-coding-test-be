@@ -2,11 +2,6 @@ import { MessageEntity } from './entities/message.entity';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
-export type StreamMeta = {
-  conversationId: string;
-  messageId: string;
-};
-
 export type StreamChatResult = {
   sessionId: string;
   conversationId: string;
@@ -21,7 +16,7 @@ export type GetMessagesOptions = {
 };
 
 export type PaginatedMessagesResult = {
-  messages: MessageEntity[];
+  messages: MessageResponseDto[];
   hasMore: boolean;
   nextCursor: string | null;
 };
@@ -39,6 +34,18 @@ export type OpenAIInputImageItem = {
 };
 
 export type OpenAIMessageInput = {
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string | OpenAIInputItem[];
+};
+
+export class MessageResponseDto {
+  id: string;
+  role: string;
+  content: string;
+  conversationId: string;
+  createdAt: Date;
+  attachments: {
+    id: string;
+    url: string | null;
+  }[];
 }

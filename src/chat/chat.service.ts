@@ -1,12 +1,11 @@
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Brackets, In, Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import OpenAI from 'openai';
 
 import { ConversationEntity } from './entities/conversation.entity';
@@ -14,10 +13,12 @@ import { MessageEntity } from './entities/message.entity';
 import { CreateChatDto } from './dto/create-chat.dto';
 import {
   DEFAULT_CHAT_HISTORY_LIMIT,
+  DEFAULT_CHATGPT_MODEL,
   MAX_CHAT_HISTORY_LIMIT,
 } from '../constants';
 import {
   GetMessagesOptions,
+  MessageResponseDto,
   MessageRole,
   OpenAIInputItem,
   OpenAIMessageInput,
@@ -119,18 +120,45 @@ export class ChatService {
     return Math.max(1, Math.min(limit, MAX_CHAT_HISTORY_LIMIT));
   }
 
+  private buildAttachmentUrl(url?: string | null): string | null {
+    if (!url) return null;
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+
+    const appUrl = this.configService.get<string>('app.baseUrl');
+
+    return `${appUrl}${url.startsWith('/') ? url : `/${url}`}`;
+  }
+
+  private toMessageResponseDto(message: MessageEntity): MessageResponseDto {
+    return {
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.createdAt,
+      conversationId: message.conversationId,
+      attachments: (message.attachments || []).map((attachment) => ({
+        id: attachment.id,
+        url: this.buildAttachmentUrl(attachment.url),
+      })),
+    };
+  }
+
   async getConversationMessages(
     conversationId: string,
     options?: GetMessagesOptions,
-  ): Promise<MessageEntity[] | PaginatedMessagesResult> {
+  ): Promise<MessageResponseDto[] | PaginatedMessagesResult> {
     if (!options) {
-      return await this.messageRepo.find({
+      const messages = await this.messageRepo.find({
         where: { conversationId },
         relations: {
           attachments: true,
         },
         order: { createdAt: 'ASC', id: 'ASC' },
       });
+      return messages.map((message) => this.toMessageResponseDto(message));
     }
 
     const take = this.normalizeLimit(options.limit);
@@ -147,7 +175,9 @@ export class ChatService {
 
       const hasMore = rows.length > take;
       const sliced = rows.slice(0, take);
-      const messages = sliced.reverse();
+      const messages = sliced
+        .reverse()
+        .map((message) => this.toMessageResponseDto(message));
 
       return {
         messages,
@@ -173,6 +203,7 @@ export class ChatService {
 
     const rows = await this.messageRepo
       .createQueryBuilder('message')
+      .leftJoinAndSelect('message.attachments', 'attachments')
       .where('message.conversationId = :conversationId', { conversationId })
       .andWhere(
         new Brackets((qb) => {
@@ -194,7 +225,9 @@ export class ChatService {
 
     const hasMore = rows.length > take;
     const sliced = rows.slice(0, take);
-    const messages = sliced.reverse();
+    const messages = sliced
+      .reverse()
+      .map((message) => this.toMessageResponseDto(message));
 
     return {
       messages,
@@ -206,7 +239,7 @@ export class ChatService {
   async getMessagesBySessionId(
     sessionId: string,
     options?: GetMessagesOptions,
-  ): Promise<MessageEntity[] | PaginatedMessagesResult> {
+  ): Promise<MessageResponseDto[] | PaginatedMessagesResult> {
     const conversation = await this.conversationRepo.findOne({
       where: { sessionId },
     });
@@ -293,7 +326,8 @@ export class ChatService {
     const input = [...historyInput, currentUserInput];
 
     const model =
-      this.configService.get<string>('openai.model', 'gpt-5.4') ?? 'gpt-5.4';
+      this.configService.get<string>('openai.model', DEFAULT_CHATGPT_MODEL) ??
+      DEFAULT_CHATGPT_MODEL;
 
     let fullResponse = '';
     let openaiResponseId: string | null = null;
